@@ -1,0 +1,294 @@
+warning: in the working copy of 'apps/examples/commerce-catalog-api/src/commerce-scenario.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/examples/commerce-provider-api/src/provider-mapper.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'packages/catalog-core/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'packages/catalog-core/src/resolve-service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'packages/catalog-core/src/scenario.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'packages/ocp-schema/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+diff --git a/apps/examples/commerce-catalog-api/src/commerce-scenario.ts b/apps/examples/commerce-catalog-api/src/commerce-scenario.ts
+index 124f388..73c17d4 100644
+--- a/apps/examples/commerce-catalog-api/src/commerce-scenario.ts
++++ b/apps/examples/commerce-catalog-api/src/commerce-scenario.ts
+@@ -13,6 +13,7 @@ import {
+   readDescriptorField,
+   stringField,
+   type CatalogScenarioModule,
++  type ResolveContext,
+   type SearchProjection,
+ } from '@ocp-catalog/catalog-core';
+ import type { z } from 'zod';
+@@ -211,6 +212,14 @@ function buildSearchProjection(object: CommercialObject): SearchProjection {
+   const quantity = numberField(readDescriptorField(object, 'ocp.commerce.inventory.v1#/quantity'));
+   const sku = stringField(readDescriptorField(object, 'ocp.commerce.product.core.v1#/sku'));
+   const productUrl = stringField(readDescriptorField(object, 'ocp.commerce.product.core.v1#/product_url'));
++  // 透传 product.core.v1.attributes(原始 free-form 字段),供 buildResolveActions 等下游读取。
++  // 典型用途:Provider 注入 requires_affiliate_resolution + provider_resolve_hook_url
++  // 让 catalog 在 resolve 时回调 Provider 拿动态 ActionBinding。
++  const rawAttributes = readDescriptorField(object, 'ocp.commerce.product.core.v1#/attributes');
++  const attributesField =
++    rawAttributes && typeof rawAttributes === 'object' && !Array.isArray(rawAttributes)
++      ? (rawAttributes as Record<string, unknown>)
++      : undefined;
+   const imageUrls = readDescriptorField(object, 'ocp.commerce.product.core.v1#/image_urls');
+   const primaryImageUrl = Array.isArray(imageUrls) ? stringField(imageUrls[0]) : undefined;
+   const hasImage = Boolean(primaryImageUrl);
+@@ -258,6 +267,7 @@ function buildSearchProjection(object: CommercialObject): SearchProjection {
+     ...(object.source_url ? { source_url: object.source_url } : {}),
+     provider_id: object.provider_id,
+     object_id: object.object_id,
++    ...(attributesField ? { attributes: attributesField } : {}),
+     text,
+   };
+ }
+@@ -281,24 +291,88 @@ function buildEmbeddingText(_object: CommercialObject, projection: SearchProject
+   ].filter((value): value is string => typeof value === 'string' && value.length > 0).join('\n');
+ }
+ 
+-function buildResolveActions(projection: Record<string, unknown>): ActionBinding[] {
++// 单次回调 Provider 的超时,2s 内不返就降级到静态 view_product
++const PROVIDER_HOOK_TIMEOUT_MS = 2000;
++
++/**
++ * Generate ActionBindings for a resolved entry.
++ *
++ * Two sources:
++ *   1. Static `view_product` synthesized from projection.product_url / source_url
++ *      (always present if the entry has a URL).
++ *   2. Dynamic bindings from a Provider-side resolve hook, requested when the
++ *      entry's `attributes.requires_affiliate_resolution` flag is true.
++ *      The Provider's hook URL is read from `attributes.provider_resolve_hook_url`.
++ *
++ * Provider failures (timeout, non-2xx, malformed response) are swallowed:
++ *   resolution must keep working even if the Provider is down.
++ */
++async function buildResolveActions(
++  projection: Record<string, unknown>,
++  ctx: ResolveContext,
++): Promise<ActionBinding[]> {
++  const actions: ActionBinding[] = [];
++
++  // ---- (1) Static view_product fallback ----
+   const url = typeof projection.product_url === 'string'
+     ? projection.product_url
+     : typeof projection.source_url === 'string'
+       ? projection.source_url
+       : null;
+-
+-  if (!url) return [];
+-
+-  return [
+-    {
++  if (url) {
++    actions.push({
+       action_id: 'view_product',
+       action_type: 'url',
+       label: 'View product',
+       url,
+       method: 'GET',
+-    },
+-  ];
++    });
++  }
++
++  // ---- (2) Dynamic Provider resolve_hook callback ----
++  const attrs = (projection.attributes && typeof projection.attributes === 'object'
++    ? (projection.attributes as Record<string, unknown>)
++    : {});
++
++  const requires = attrs.requires_affiliate_resolution === true;
++  const hookUrl = typeof attrs.provider_resolve_hook_url === 'string'
++    ? attrs.provider_resolve_hook_url
++    : null;
++
++  if (requires && hookUrl) {
++    try {
++      const res = await ctx.fetch(hookUrl, {
++        method: 'POST',
++        headers: { 'content-type': 'application/json' },
++        body: JSON.stringify({
++          entry_id: ctx.entryId,
++          object_id: projection.sku ?? projection.object_id,
++          agent_id: ctx.request.agent?.agent_id,
++        }),
++        signal: AbortSignal.timeout(PROVIDER_HOOK_TIMEOUT_MS),
++      });
++      if (res.ok) {
++        const data = (await res.json()) as { action_bindings?: unknown };
++        if (Array.isArray(data.action_bindings)) {
++          for (const b of data.action_bindings) {
++            // Trust Provider's binding shape; downstream zod will reject if malformed.
++            actions.push(b as ActionBinding);
++          }
++        }
++      } else {
++        console.warn(
++          `[commerce-scenario] resolve_hook returned ${res.status} for entry=${ctx.entryId}`,
++        );
++      }
++    } catch (err) {
++      console.warn(
++        `[commerce-scenario] resolve_hook failed for entry=${ctx.entryId}:`,
++        err instanceof Error ? err.message : err,
++      );
++    }
++  }
++
++  return actions;
+ }
+ 
+ function deriveQualityTier(input: {
+diff --git a/apps/examples/commerce-provider-api/src/provider-mapper.test.ts b/apps/examples/commerce-provider-api/src/provider-mapper.test.ts
+index 5c23049..cc03793 100644
+--- a/apps/examples/commerce-provider-api/src/provider-mapper.test.ts
++++ b/apps/examples/commerce-provider-api/src/provider-mapper.test.ts
+@@ -30,8 +30,12 @@ const config: AppConfig = {
+   EMBEDDING_MODEL: 'local-hash-v1',
+   EMBEDDING_DIMENSION: 64,
+   USER_DEMO_AGENT_MODEL: 'qwen-plus',
++  OPENAI_MODEL_NAME: 'gpt-4o-mini',
+   OPENAI_API_KEY: '',
+   OPENAI_BASE_URL: 'https://api.openai.com/v1',
++  QWEN_MODEL_NAME: 'qwen3.6-plus',
++  QWEN_API_KEY: '',
++  QWEN_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+ };
+ 
+ const product: typeof schema.providerProducts.$inferSelect = {
+diff --git a/packages/catalog-core/src/index.ts b/packages/catalog-core/src/index.ts
+index be72a5e..de62e27 100644
+--- a/packages/catalog-core/src/index.ts
++++ b/packages/catalog-core/src/index.ts
+@@ -18,7 +18,12 @@ export { QueryService } from './query-service';
+ export { ResolveService } from './resolve-service';
+ export { CatalogEmbeddingService } from './embedding-service';
+ export { defaultProviderFieldRules } from './scenario';
+-export type { CatalogScenarioModule, DescriptorValidationResult, SearchProjection } from './scenario';
++export type {
++  CatalogScenarioModule,
++  DescriptorValidationResult,
++  ResolveContext,
++  SearchProjection,
++} from './scenario';
+ export type { EmbeddingProvider, EmbeddingResult } from './embedding-service';
+ 
+ export type CatalogServicesOptions = {
+diff --git a/packages/catalog-core/src/resolve-service.ts b/packages/catalog-core/src/resolve-service.ts
+index de2a54c..189f055 100644
+--- a/packages/catalog-core/src/resolve-service.ts
++++ b/packages/catalog-core/src/resolve-service.ts
+@@ -3,6 +3,7 @@ import type { Db } from '@ocp-catalog/db';
+ import { schema } from '@ocp-catalog/db';
+ import {
+   resolveRequestSchema,
++  type ActionBinding,
+   type ResolvableReference,
+ } from '@ocp-catalog/ocp-schema';
+ import { AppError, newId, nowIso } from '@ocp-catalog/shared';
+@@ -62,6 +63,20 @@ export class ResolveService {
+     const projection = asProjection(row.projection);
+     const resolvedAt = nowIso();
+     const expiresAt = new Date(Date.now() + REFERENCE_TTL_MS).toISOString();
++
++    // Scenarios may return ActionBinding[] synchronously OR via Promise
++    // (e.g. when calling out to a Provider's resolve_hook).
++    let actionBindings: ActionBinding[] = [];
++    if (this.scenario.buildResolveActions) {
++      actionBindings = await Promise.resolve(
++        this.scenario.buildResolveActions(projection, {
++          entryId: row.entryId,
++          request,
++          fetch: globalThis.fetch,
++        }),
++      );
++    }
++
+     const reference: ResolvableReference = {
+       ocp_version: '1.0',
+       kind: 'ResolvableReference',
+@@ -75,7 +90,7 @@ export class ResolveService {
+       ...(providerState ? { registration_version: providerState.activeRegistrationVersion } : {}),
+       title: row.title,
+       visible_attributes: visibleAttributes(projection),
+-      action_bindings: this.scenario.buildResolveActions?.(projection) ?? [],
++      action_bindings: actionBindings,
+       freshness: {
+         object_updated_at: row.objectUpdatedAt.toISOString(),
+         resolved_at: resolvedAt,
+diff --git a/packages/catalog-core/src/scenario.ts b/packages/catalog-core/src/scenario.ts
+index 3745034..868b856 100644
+--- a/packages/catalog-core/src/scenario.ts
++++ b/packages/catalog-core/src/scenario.ts
+@@ -3,6 +3,7 @@ import type {
+   CatalogManifest,
+   CommercialObject,
+   ObjectContract,
++  ResolveRequest,
+ } from '@ocp-catalog/ocp-schema';
+ 
+ export type DescriptorValidationResult =
+@@ -16,6 +17,20 @@ export type SearchProjection = Record<string, unknown> & {
+   text?: string;
+ };
+ 
++/**
++ * Context passed to `buildResolveActions`, enabling scenarios to:
++ *   - know which entry is being resolved (entryId)
++ *   - read the original resolve request (e.g. request.agent.agent_id)
++ *   - perform async I/O (e.g. callback to a Provider) via injected fetch
++ *
++ * Injecting `fetch` keeps the scenario module testable (mock fetch in tests).
++ */
++export interface ResolveContext {
++  entryId: string;
++  request: ResolveRequest;
++  fetch: typeof globalThis.fetch;
++}
++
+ export type CatalogScenarioModule = {
+   description?: string;
+   registryVisibility?: CatalogManifest['registry_visibility'];
+@@ -27,7 +42,21 @@ export type CatalogScenarioModule = {
+   buildSearchProjection(object: CommercialObject): SearchProjection;
+   buildExplainProjection?(object: CommercialObject, projection: SearchProjection): Record<string, unknown>;
+   buildEmbeddingText?(object: CommercialObject, projection: SearchProjection): string | null | undefined;
+-  buildResolveActions?(projection: Record<string, unknown>): ActionBinding[];
++  /**
++   * Build action_bindings for the resolved object.
++   *
++   * Return type is `ActionBinding[] | Promise<ActionBinding[]>`:
++   *   - sync return preserves backward compatibility with old scenarios
++   *   - async return allows scenarios to call out to Providers / external services
++   *
++   * The `ctx` parameter was added in 2026-05. Old scenarios that ignored it
++   * remain source-compatible because extra positional parameters in TS function
++   * types are accepted silently.
++   */
++  buildResolveActions?(
++    projection: Record<string, unknown>,
++    ctx: ResolveContext,
++  ): ActionBinding[] | Promise<ActionBinding[]>;
+ };
+ 
+ export function defaultProviderFieldRules(): CatalogManifest['provider_contract']['field_rules'] {
+diff --git a/packages/ocp-schema/src/index.ts b/packages/ocp-schema/src/index.ts
+index 935ffb8..764fea7 100644
+--- a/packages/ocp-schema/src/index.ts
++++ b/packages/ocp-schema/src/index.ts
+@@ -293,6 +293,18 @@ export const resolveRequestSchema = z.object({
+   kind: z.literal('ResolveRequest').optional(),
+   catalog_id: z.string().min(1).optional(),
+   entry_id: z.string().min(1),
++  /**
++   * Optional Agent identity for per-agent attribution / dynamic action binding.
++   * Backward-compatible: existing clients can omit this entirely.
++   */
++  agent: z
++    .object({
++      agent_id: z.string().min(1),
++      intent: z
++        .enum(['shopping_browse', 'shopping_compare', 'shopping_purchase'])
++        .optional(),
++    })
++    .optional(),
+ });
+ 
+ export const actionBindingSchema = z.object({

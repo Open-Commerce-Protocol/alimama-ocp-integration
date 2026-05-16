@@ -1,0 +1,30 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node / Bun (if anyone clones provider code into ./provider/ later)
+node_modules/
+bun.lockb
+*.tsbuildinfo
+
+# Env / secrets — never commit
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Build output
+dist/
+build/
+.next/
+.turbo/
+
+# Runtime / temp
+*.log
+.cache/
+tmp/
+temp/
