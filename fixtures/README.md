@@ -5,7 +5,7 @@
 3 份 mock 数据样本住在 OCP-Catalog monorepo 里：
 
 ```text
-e:/homework/work/OCP-Catalog/apps/examples/alimama-provider-api/tests/fixtures/
+https://github.com/Open-Commerce-Protocol/OCP-Catalog/tree/main/apps/examples/alimama-provider-api/tests/fixtures/
 ├── material-optional-sample.json   ← 6 个商品,14 边界场景全覆盖
 ├── privilege-get-sample.json       ← 转链响应(含淘宝券 + 天猫专属券)
 └── order-get-sample.json           ← 4 个订单,4 种状态(paid / settled / invalid / under_dispute)

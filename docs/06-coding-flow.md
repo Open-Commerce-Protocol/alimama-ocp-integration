@@ -67,7 +67,8 @@ Day 4 写完 4 个 patch 后 hook 死活不触发。根因：OCP-Catalog 的 `bu
 ### 0.1 把 OCP-Catalog 自己跑通（先验证基线）
 
 ```bash
-cd e:/homework/work/OCP-Catalog
+# clone: git clone https://github.com/Open-Commerce-Protocol/OCP-Catalog.git
+cd OCP-Catalog
 docker ps | grep ocp-catalog-postgres-wsl   # 应该看到 healthy 容器
 bun install
 bun run db:migrate
@@ -79,7 +80,7 @@ curl http://localhost:4000/health           # 应返 {"ok":true,"service":"comme
 
 ### 0.2 选编辑器 + VS Code 插件
 
-- TypeScript 工作区：根目录用 `e:/homework/work/OCP-Catalog/` 打开（不是 alimama-ocp-integration），让 TS 能解析 workspace 包
+- TypeScript 工作区：根目录用克隆后的 `OCP-Catalog/` 打开（不是 alimama-ocp-integration），让 TS 能解析 workspace 包
 - 装 Biome 或 Prettier 插件按项目格式
 
 ### 0.3 决定 mock 模式还是真实 AppKey 起步
@@ -97,7 +98,7 @@ curl http://localhost:4000/health           # 应返 {"ok":true,"service":"comme
 ### Step 1.1 创建 workspace 骨架（30 分钟）
 
 ```bash
-cd e:/homework/work/OCP-Catalog
+cd OCP-Catalog
 mkdir -p apps/examples/alimama-provider-api/src/{alimama,mapper,http,workers,services}
 mkdir -p apps/examples/alimama-provider-api/tests/fixtures
 cd apps/examples/alimama-provider-api
@@ -145,7 +146,7 @@ cd apps/examples/alimama-provider-api
 回根目录跑：
 
 ```bash
-cd e:/homework/work/OCP-Catalog
+cd OCP-Catalog
 bun install   # workspace 会自动 link
 ```
 
@@ -696,7 +697,7 @@ export const resolveHookRouter = new Elysia({ prefix: '/provider/resolve_hook' }
 
 ```bash
 # Terminal 1: commerce-catalog-api (应该已经在跑)
-cd e:/homework/work/OCP-Catalog
+cd OCP-Catalog
 bun run commerce:catalog:api &
 
 # Terminal 2: alimama-provider
@@ -863,7 +864,7 @@ async buildResolveActions(
 ### Step 4.6 跑 OCP-Catalog 现有测试
 
 ```bash
-cd e:/homework/work/OCP-Catalog
+cd OCP-Catalog
 bun test
 # 期望:所有现有测试 pass(因为是向后兼容扩展)
 ```

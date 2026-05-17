@@ -5,7 +5,7 @@
 `alimama-provider-api` 服务的代码住在 OCP-Catalog monorepo 里：
 
 ```text
-e:/homework/work/OCP-Catalog/apps/examples/alimama-provider-api/
+https://github.com/Open-Commerce-Protocol/OCP-Catalog/tree/main/apps/examples/alimama-provider-api/
 ```
 
 之所以不放在本目录，是为了复用 OCP-Catalog 的 workspace 链接（`@ocp-catalog/ocp-schema` 等）、Drizzle 配置、`bun run` 工程入口。
@@ -58,7 +58,8 @@ apps/examples/alimama-provider-api/
 
 ```bash
 # 1. 起 Postgres 容器 + OCP catalog
-cd e:/homework/work/OCP-Catalog
+# 克隆 OCP-Catalog: git clone https://github.com/Open-Commerce-Protocol/OCP-Catalog.git
+cd OCP-Catalog
 docker compose up -d postgres        # 或 docker start ocp-catalog-postgres-wsl
 bun run commerce:catalog:api &       # :4000
 

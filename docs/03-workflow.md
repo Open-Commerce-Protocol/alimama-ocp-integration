@@ -87,7 +87,8 @@ Day 0          Week 1          Week 2          Week 3          Week 4          W
 ### 启动命令
 
 ```bash
-cd e:/homework/work/OCP-Catalog
+# clone: git clone https://github.com/Open-Commerce-Protocol/OCP-Catalog.git
+cd OCP-Catalog
 bun install
 bun run db:migrate
 bun run commerce:catalog:api &

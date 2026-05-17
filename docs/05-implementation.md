@@ -23,7 +23,7 @@
 
 ## 要新建 / 修改的文件清单
 
-### 新建（在 `e:/homework/work/OCP-Catalog/apps/examples/alimama-provider-api/`）
+### 新建（在 [`apps/examples/alimama-provider-api/`](https://github.com/Open-Commerce-Protocol/OCP-Catalog/tree/main/apps/examples/alimama-provider-api)）
 
 ```text
 alimama-provider-api/
@@ -332,7 +332,7 @@ async buildResolveActions(projection, ctx) {
 ```bash
 # Postgres 已经在跑(之前 docker compose 起的 ocp-catalog-postgres-wsl on :55432)
 
-cd e:/homework/work/OCP-Catalog
+cd OCP-Catalog
 
 # 起 commerce-catalog-api
 bun run commerce:catalog:api &      # :4000

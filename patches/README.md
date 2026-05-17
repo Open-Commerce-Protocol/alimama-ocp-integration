@@ -23,7 +23,8 @@
 ## 应用 / 回滚
 
 ```bash
-cd e:/homework/work/OCP-Catalog
+# 克隆 OCP-Catalog: git clone https://github.com/Open-Commerce-Protocol/OCP-Catalog.git
+cd OCP-Catalog
 
 # 看当前 working tree 改动
 git diff HEAD -- packages/ocp-schema/src/index.ts packages/catalog-core/ apps/examples/commerce-catalog-api/src/commerce-scenario.ts apps/examples/commerce-provider-api/src/provider-mapper.test.ts
@@ -32,7 +33,8 @@ git diff HEAD -- packages/ocp-schema/src/index.ts packages/catalog-core/ apps/ex
 git checkout HEAD -- packages/ocp-schema/src/index.ts packages/catalog-core/ apps/examples/commerce-catalog-api/src/commerce-scenario.ts apps/examples/commerce-provider-api/src/provider-mapper.test.ts
 
 # 重新应用(已保存的 unified diff)
-git apply e:/homework/work/alimama-ocp-integration/patches/day-4-all-changes.patch
+git apply /path/to/alimama-ocp-integration/patches/day-4-all-changes.patch
+# 或从 GitHub 下载: curl -O https://raw.githubusercontent.com/Open-Commerce-Protocol/alimama-ocp-integration/main/patches/day-4-all-changes.patch && git apply day-4-all-changes.patch
 ```
 
 ## 最终去向

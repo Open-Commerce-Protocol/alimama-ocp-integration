@@ -89,7 +89,7 @@
 把 `alimama-provider` 作为新的 example app 放入 OCP-Catalog monorepo：
 
 ```
-e:/homework/work/OCP-Catalog/
+https://github.com/Open-Commerce-Protocol/OCP-Catalog/
   apps/
     examples/
       commerce-catalog-api/       (现有,需小改:resolve hook 扩展点)
@@ -760,7 +760,8 @@ Agent → catalog → provider → alimama → 返回 Agent，端到端要在 **
 
 ```bash
 # 假设 OCP-Catalog Postgres 已通过 docker compose 起来
-cd e:/homework/work/OCP-Catalog
+# clone: git clone https://github.com/Open-Commerce-Protocol/OCP-Catalog.git
+cd OCP-Catalog
 
 # 1. 启动 catalog
 bun run commerce:catalog:api &
